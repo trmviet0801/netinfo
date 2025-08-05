@@ -1,50 +1,92 @@
 package expo.modules.netinfo
 
+import android.Manifest
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import android.net.wifi.WifiManager
+import androidx.annotation.RequiresPermission
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
-import java.net.URL
+import java.net.Inet4Address
+import java.net.NetworkInterface
 
 class NetinfoModule : Module() {
-  // Each module class must implement the definition function. The definition consists of components
-  // that describes the module's functionality and behavior.
-  // See https://docs.expo.dev/modules/module-api for more details about available components.
   override fun definition() = ModuleDefinition {
-    // Sets the name of the module that JavaScript code will use to refer to the module. Takes a string as an argument.
-    // Can be inferred from module's class name, but it's recommended to set it explicitly for clarity.
-    // The module will be accessible from `requireNativeModule('Netinfo')` in JavaScript.
     Name("Netinfo")
 
-    // Sets constant properties on the module. Can take a dictionary or a closure that returns a dictionary.
-    Constants(
-      "PI" to Math.PI
-    )
-
-    // Defines event names that the module can send to JavaScript.
-    Events("onChange")
-
-    // Defines a JavaScript synchronous function that runs the native code on the JavaScript thread.
-    Function("hello") {
-      "Hello world! 👋"
+    Function("isConnected") {
+      isConnected()
     }
 
-    // Defines a JavaScript function that always returns a Promise and whose native code
-    // is by default dispatched on the different thread than the JavaScript runtime runs on.
-    AsyncFunction("setValueAsync") { value: String ->
-      // Send an event to JavaScript.
-      sendEvent("onChange", mapOf(
-        "value" to value
-      ))
+    Function("isInternetReachable") {
+      isInternetReachable()
     }
 
-    // Enables the module to be used as a native view. Definition components that are accepted as part of
-    // the view definition: Prop, Events.
-    View(NetinfoView::class) {
-      // Defines a setter for the `url` prop.
-      Prop("url") { view: NetinfoView, url: URL ->
-        view.webView.loadUrl(url.toString())
+    Function("isWifiEnable") {
+      isWifiEnable()
+    }
+
+    Function("ipAddress") {
+      ipAddress()
+    }
+  }
+
+  @RequiresPermission(Manifest.permission.ACCESS_NETWORK_STATE)
+  private fun isConnected(): Boolean {
+    val cm = appContext.reactContext
+      ?.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return false
+
+    val currentActiveNetwork = cm.activeNetwork ?: return false
+    val capabilities = cm.getNetworkCapabilities(currentActiveNetwork) ?: return false
+
+    return capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
+            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
+  }
+
+  @RequiresPermission(Manifest.permission.ACCESS_NETWORK_STATE)
+  private fun isInternetReachable(): Boolean {
+    val cm = appContext.reactContext
+      ?.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return false
+
+    val currentActiveNetwork = cm.activeNetwork ?: return false
+    val capabilities = cm.getNetworkCapabilities(currentActiveNetwork) ?: return false
+
+    return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+  }
+
+  private fun isWifiEnable(): Boolean {
+    val wm = appContext.reactContext
+      ?.getSystemService(Context.WIFI_SERVICE) as? WifiManager ?: return false
+    return wm.isWifiEnabled
+  }
+
+  private fun ipAddress(): String {
+    val interfaces = NetworkInterface.getNetworkInterfaces()
+    for (interf in interfaces) {
+      if (isWifiOrMobile(interf.name)) {
+        val addresses = interf.inetAddresses
+        for (address in addresses) {
+          if (!address.isLoopbackAddress &&
+            !address.isLinkLocalAddress &&
+            address is Inet4Address
+          ) {
+            return address.hostAddress ?: ""
+          }
+        }
       }
-      // Defines an event that the view can send to JavaScript.
-      Events("onLoad")
+    }
+    return ""
+  }
+
+  private fun isWifiOrMobile(interfaceName: String): Boolean {
+    return when {
+      interfaceName.startsWith("wlan") -> true
+      interfaceName.startsWith("rmnet") ||
+              interfaceName.startsWith("ccmni") ||
+              interfaceName.startsWith("pdp") -> true
+      else -> false
     }
   }
 }

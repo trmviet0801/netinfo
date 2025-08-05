@@ -1,19 +1,10 @@
-import type { StyleProp, ViewStyle } from 'react-native';
+import { TurboModule } from "react-native";
 
-export type OnLoadEventPayload = {
-  url: string;
-};
+interface NetInfoType extends TurboModule {
+  isConnected(): boolean | null;
+  isInternetReachable(): boolean | null;
+  isWifiEnable(): boolean;
+  ipAddress(): string;
+}
 
-export type NetinfoModuleEvents = {
-  onChange: (params: ChangeEventPayload) => void;
-};
-
-export type ChangeEventPayload = {
-  value: string;
-};
-
-export type NetinfoViewProps = {
-  url: string;
-  onLoad: (event: { nativeEvent: OnLoadEventPayload }) => void;
-  style?: StyleProp<ViewStyle>;
-};
+export default NetInfoType

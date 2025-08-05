@@ -1,12 +1,4 @@
-import { NativeModule, requireNativeModule } from 'expo';
+import { requireNativeModule } from 'expo';
+import NetInfoType from './Netinfo.types';
 
-import { NetinfoModuleEvents } from './Netinfo.types';
-
-declare class NetinfoModule extends NativeModule<NetinfoModuleEvents> {
-  PI: number;
-  hello(): string;
-  setValueAsync(value: string): Promise<void>;
-}
-
-// This call loads the native module object from the JSI.
-export default requireNativeModule<NetinfoModule>('Netinfo');
+export default requireNativeModule<NetInfoType>("Netinfo")

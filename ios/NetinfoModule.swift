@@ -1,48 +1,75 @@
 import ExpoModulesCore
+import Network
+import SystemConfiguration.CaptiveNetwork
 
 public class NetinfoModule: Module {
-  // Each module class must implement the definition function. The definition consists of components
-  // that describes the module's functionality and behavior.
-  // See https://docs.expo.dev/modules/module-api for more details about available components.
+  private let monitor = NWPathMonitor()
+  private let queue = DispatchQueue(label: "NetinfoMonitor")
+
   public func definition() -> ModuleDefinition {
-    // Sets the name of the module that JavaScript code will use to refer to the module. Takes a string as an argument.
-    // Can be inferred from module's class name, but it's recommended to set it explicitly for clarity.
-    // The module will be accessible from `requireNativeModule('Netinfo')` in JavaScript.
     Name("Netinfo")
 
-    // Sets constant properties on the module. Can take a dictionary or a closure that returns a dictionary.
-    Constants([
-      "PI": Double.pi
-    ])
-
-    // Defines event names that the module can send to JavaScript.
-    Events("onChange")
-
-    // Defines a JavaScript synchronous function that runs the native code on the JavaScript thread.
-    Function("hello") {
-      return "Hello world! 👋"
+    Function("isConnected") {
+      return self.currentPath?.status == .satisfied
     }
 
-    // Defines a JavaScript function that always returns a Promise and whose native code
-    // is by default dispatched on the different thread than the JavaScript runtime runs on.
-    AsyncFunction("setValueAsync") { (value: String) in
-      // Send an event to JavaScript.
-      self.sendEvent("onChange", [
-        "value": value
-      ])
+    Function("isInternetReachable") {
+      return self.currentPath?.isExpensive == false
     }
 
-    // Enables the module to be used as a native view. Definition components that are accepted as part of the
-    // view definition: Prop, Events.
-    View(NetinfoView.self) {
-      // Defines a setter for the `url` prop.
-      Prop("url") { (view: NetinfoView, url: URL) in
-        if view.webView.url != url {
-          view.webView.load(URLRequest(url: url))
+    Function("isWifiEnable") {
+      return self.currentPath?.usesInterfaceType(.wifi) ?? false
+    }
+
+    Function("ipAddress") {
+      return self.getWiFiAddress()
+    }
+
+    OnStartObserving {
+      self.monitor.start(queue: self.queue)
+    }
+
+    OnStopObserving {
+      self.monitor.cancel()
+    }
+  }
+
+  private var currentPath: NWPath? {
+    return monitor.currentPath
+  }
+
+  private func getWiFiAddress() -> String? {
+    var address: String?
+
+    var ifaddr: UnsafeMutablePointer<ifaddrs>?
+    if getifaddrs(&ifaddr) == 0 {
+      var ptr = ifaddr
+      while ptr != nil {
+        let interface = ptr!.pointee
+        let addrFamily = interface.ifa_addr.pointee.sa_family
+
+        if addrFamily == UInt8(AF_INET) || addrFamily == UInt8(AF_INET6) {
+          let name = String(cString: interface.ifa_name)
+          if name == "en0" {
+            var hostname = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+            getnameinfo(interface.ifa_addr,
+                        socklen_t(interface.ifa_addr.pointee.sa_len),
+                        &hostname,
+                        socklen_t(hostname.count),
+                        nil,
+                        socklen_t(0),
+                        NI_NUMERICHOST)
+            address = String(cString: hostname)
+            break
+          }
         }
+
+        ptr = interface.ifa_next
       }
 
-      Events("onLoad")
+      freeifaddrs(ifaddr)
     }
+
+    return address
   }
 }
