@@ -1,0 +1,10 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "paths": {
+      "netinfo": ["../src/index"],
+      "netinfo/*": ["../src/*"]
+    }
+  }
+}
